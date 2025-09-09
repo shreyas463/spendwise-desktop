@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spendwise-postgres-dev
+    environment:
+      POSTGRES_DB: spendwise_dev
+      POSTGRES_USER: spendwise
+      POSTGRES_PASSWORD: spendwise123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - spendwise-dev-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: spendwise-pgadmin-dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@spendwise.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    networks:
+      - spendwise-dev-network
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_dev_data:
+  pgadmin_dev_data:
+
+networks:
+  spendwise-dev-network:
+    driver: bridge

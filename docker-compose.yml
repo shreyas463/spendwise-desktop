@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spendwise-postgres
+    environment:
+      POSTGRES_DB: spendwise
+      POSTGRES_USER: spendwise
+      POSTGRES_PASSWORD: spendwise123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - spendwise-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spendwise -d spendwise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: spendwise-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@spendwise.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - spendwise-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    container_name: spendwise-gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - INGEST_SERVICE_URL=http://ingest-service:8082
+      - CATEGORIZER_SERVICE_URL=http://categorizer-service:8083
+      - ANALYTICS_SERVICE_URL=http://analytics-service:8084
+      - CHAT_SERVICE_URL=http://chat-service:8085
+    networks:
+      - spendwise-network
+    depends_on:
+      - postgres
+
+  ingest-service:
+    build:
+      context: .
+      dockerfile: ingest-service/Dockerfile
+    container_name: spendwise-ingest
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/spendwise
+      - SPRING_DATASOURCE_USERNAME=spendwise
+      - SPRING_DATASOURCE_PASSWORD=spendwise123
+    networks:
+      - spendwise-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  categorizer-service:
+    build:
+      context: .
+      dockerfile: categorizer-service/Dockerfile
+    container_name: spendwise-categorizer
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/spendwise
+      - SPRING_DATASOURCE_USERNAME=spendwise
+      - SPRING_DATASOURCE_PASSWORD=spendwise123
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    networks:
+      - spendwise-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    container_name: spendwise-analytics
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/spendwise
+      - SPRING_DATASOURCE_USERNAME=spendwise
+      - SPRING_DATASOURCE_PASSWORD=spendwise123
+    networks:
+      - spendwise-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: chat-service/Dockerfile
+    container_name: spendwise-chat
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/spendwise
+      - SPRING_DATASOURCE_USERNAME=spendwise
+      - SPRING_DATASOURCE_PASSWORD=spendwise123
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    networks:
+      - spendwise-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  spendwise-network:
+    driver: bridge
