@@ -1,4 +1,3 @@
-import React from 'react'
 import { useData } from '../contexts/DataContext'
 import { BarChart3, PieChart, TrendingUp, Calendar } from 'lucide-react'
 
@@ -6,18 +5,18 @@ export default function Analytics() {
   const { transactions, categories, loading } = useData()
 
   // Calculate analytics data
-  const categorySpending = categories.map(category => {
+  const categorySpending = categories.map((category: any) => {
     const amount = transactions
-      .filter(t => t.categoryId === category.id && t.amount < 0)
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
+      .filter((t: any) => t.categoryId === category.id && t.amount < 0)
+      .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
     return {
       category: category.name,
       amount,
       color: category.color || '#6B7280'
     }
-  }).filter(item => item.amount > 0)
+  }).filter((item: any) => item.amount > 0)
 
-  const totalSpending = categorySpending.reduce((sum, item) => sum + item.amount, 0)
+  const totalSpending = categorySpending.reduce((sum: number, item: any) => sum + item.amount, 0)
 
   const monthlyData = [
     { month: 'Jan', amount: 1200, count: 45 },
@@ -98,7 +97,7 @@ export default function Analytics() {
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Spending by Category</h3>
           <div className="space-y-3">
-            {categorySpending.map((item, index) => {
+            {categorySpending.map((item: any, index: number) => {
               const percentage = (item.amount / totalSpending) * 100
               return (
                 <div key={index} className="space-y-2">
