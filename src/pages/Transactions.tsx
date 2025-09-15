@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useData } from '../contexts/DataContext'
-import { Search, Filter, Plus, Download } from 'lucide-react'
+import { Search, Plus, Download } from 'lucide-react'
 
 export default function Transactions() {
   const { transactions, categories, loading } = useData()
