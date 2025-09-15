@@ -52,7 +52,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined)
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
+  const [analytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -129,7 +129,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
-      setTransactions(prev => [...prev, newTransaction])
+      setTransactions((prev: Transaction[]) => [...prev, newTransaction])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add transaction')
     } finally {
@@ -141,7 +141,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
     try {
       // TODO: Implement API call
-      setTransactions(prev => prev.map(t => 
+      setTransactions((prev: Transaction[]) => prev.map((t: Transaction) => 
         t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
       ))
     } catch (err) {
@@ -155,7 +155,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
     try {
       // TODO: Implement API call
-      setTransactions(prev => prev.filter(t => t.id !== id))
+      setTransactions((prev: Transaction[]) => prev.filter((t: Transaction) => t.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete transaction')
     } finally {
