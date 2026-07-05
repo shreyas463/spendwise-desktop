@@ -26,6 +26,7 @@ import { currentMonthKey, monthBounds, shiftMonth } from '../core/dates'
 import { formatCompact, formatCurrency } from '../utils/formatters'
 import { EmptyState, PageHeader } from '../components/ui'
 import ImportButton from '../components/ImportButton'
+import { TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE } from '../utils/chart'
 
 const RANGES = [
   { key: '3m', label: '3 months', months: 3 },
@@ -85,13 +86,15 @@ export default function Analytics() {
         title="Analytics"
         subtitle="Where your money goes"
         actions={
-          <div className="flex rounded-md border">
+          <div className="glass flex gap-1 rounded-xl border p-1">
             {RANGES.map((r) => (
               <button
                 key={r.key}
                 onClick={() => setRangeKey(r.key)}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-md last:rounded-r-md ${
-                  rangeKey === r.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                  rangeKey === r.key
+                    ? 'bg-brand text-white shadow-glow'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 {r.label}
@@ -109,12 +112,21 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={slices} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={100} paddingAngle={2}>
+                <Pie
+                  data={slices}
+                  dataKey="amount"
+                  nameKey="name"
+                  innerRadius={64}
+                  outerRadius={100}
+                  paddingAngle={3}
+                  cornerRadius={6}
+                  stroke="none"
+                >
                   {slices.map((s) => (
-                    <Cell key={s.categoryId} fill={s.color} stroke="none" />
+                    <Cell key={s.categoryId} fill={s.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
                 <Legend iconType="circle" iconSize={8} />
               </PieChart>
             </ResponsiveContainer>
@@ -125,16 +137,25 @@ export default function Analytics() {
         <ChartCard title="Monthly spend & activity" onExport={exportTrend}>
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={trend} margin={{ left: 8, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+              <defs>
+                <linearGradient id="gBarSpent" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" />
+                  <stop offset="100%" stopColor="#8b5cf6" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.08} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
               <YAxis yAxisId="amt" tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={52} />
               <YAxis yAxisId="cnt" orientation="right" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={36} />
               <Tooltip
                 formatter={(v: number, name: string) => (name === 'Transactions' ? v : formatCurrency(v, currency))}
+                contentStyle={TOOLTIP_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                cursor={{ fill: 'hsl(var(--muted) / 0.5)' }}
               />
               <Legend iconType="circle" iconSize={8} />
-              <Bar yAxisId="amt" dataKey="spent" name="Spent" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              <Line yAxisId="cnt" type="monotone" dataKey="count" name="Transactions" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              <Bar yAxisId="amt" dataKey="spent" name="Spent" fill="url(#gBarSpent)" radius={[6, 6, 0, 0]} maxBarSize={44} />
+              <Line yAxisId="cnt" type="monotone" dataKey="count" name="Transactions" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -143,13 +164,24 @@ export default function Analytics() {
         <ChartCard title="Category mix over time">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={stacked.data} margin={{ left: 8, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.08} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
               <YAxis tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={52} />
-              <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+              <Tooltip
+                formatter={(v: number) => formatCurrency(v, currency)}
+                contentStyle={TOOLTIP_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                cursor={{ fill: 'hsl(var(--muted) / 0.5)' }}
+              />
               <Legend iconType="circle" iconSize={8} />
-              {stacked.series.map((s) => (
-                <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} />
+              {stacked.series.map((s, i) => (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  stackId="a"
+                  fill={s.color}
+                  radius={i === stacked.series.length - 1 ? [5, 5, 0, 0] : undefined}
+                />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -162,10 +194,21 @@ export default function Analytics() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={merchants.slice(0, 8)} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <defs>
+                  <linearGradient id="gMerchant" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.75} />
+                    <stop offset="100%" stopColor="#6366f1" />
+                  </linearGradient>
+                </defs>
                 <XAxis type="number" tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                 <YAxis type="category" dataKey="merchant" width={130} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
-                <Bar dataKey="amount" name="Spent" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                <Tooltip
+                  formatter={(v: number) => formatCurrency(v, currency)}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelStyle={TOOLTIP_LABEL_STYLE}
+                  cursor={{ fill: 'hsl(var(--muted) / 0.5)' }}
+                />
+                <Bar dataKey="amount" name="Spent" fill="url(#gMerchant)" radius={[0, 6, 6, 0]} maxBarSize={26} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -177,7 +220,7 @@ export default function Analytics() {
 
 function ChartCard({ title, onExport, children }: { title: string; onExport?: () => void; children: React.ReactNode }) {
   return (
-    <div className="card p-5">
+    <div className="card hover-lift animate-fade-up p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {onExport && (

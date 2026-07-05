@@ -31,7 +31,19 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { store, updateSettings } = useData()
 
-  const isDark = document.documentElement.classList.contains('dark')
+  // Resolve the effective theme reactively from settings (+ system preference)
+  // rather than reading the DOM, so the toggle label/icon never go stale.
+  const pref = store.settings.theme
+  const [systemDark, setSystemDark] = React.useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
+  React.useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => setSystemDark(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const isDark = pref === 'dark' || (pref === 'system' && systemDark)
   const toggleTheme = () => updateSettings({ theme: isDark ? 'light' : 'dark' })
 
   const overBudget = budgetStatus(store.transactions, store.categories, store.budgets).filter(
@@ -39,31 +51,44 @@ export default function Layout({ children }: LayoutProps) {
   ).length
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {/* Sidebar */}
-      <div className="fixed inset-y-0 flex w-56 flex-col">
-        <div className="flex flex-grow flex-col border-r bg-card">
-          <div className="flex items-center gap-2 px-4 pb-4 pt-8">
-            <Wallet className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">SpendWise</h1>
+      <div className="fixed inset-y-0 z-40 flex w-60 flex-col">
+        <div className="glass m-3 flex flex-grow flex-col rounded-2xl border shadow-soft">
+          <div className="flex items-center gap-2.5 px-5 pb-5 pt-6">
+            <div className="bg-brand flex h-9 w-9 items-center justify-center rounded-xl shadow-glow">
+              <Wallet className="h-5 w-5 text-white" />
+            </div>
+            <h1 className="text-lg font-bold tracking-tight text-foreground">
+              Spend<span className="text-gradient">Wise</span>
+            </h1>
           </div>
-          <nav className="mt-2 flex-1">
+
+          <nav className="mt-1 flex-1 px-3">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`relative mx-2 my-0.5 flex items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                  className={`group relative my-1 flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-brand text-white shadow-glow'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
                 >
-                  <item.icon className="mr-3 h-5 w-5" />
+                  <item.icon
+                    className={`mr-3 h-[18px] w-[18px] transition-transform duration-200 ${
+                      isActive ? '' : 'group-hover:scale-110'
+                    }`}
+                  />
                   {item.name}
                   {item.href === '/budgets' && overBudget > 0 && (
-                    <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger-500 px-1 text-xs font-semibold text-white">
+                    <span
+                      className={`ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs font-semibold ${
+                        isActive ? 'bg-white/25 text-white' : 'bg-danger-500 text-white'
+                      }`}
+                    >
                       {overBudget}
                     </span>
                   )}
@@ -71,12 +96,13 @@ export default function Layout({ children }: LayoutProps) {
               )
             })}
           </nav>
-          <div className="border-t p-3">
+
+          <div className="p-3">
             <button
               onClick={toggleTheme}
-              className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              {isDark ? <Sun className="mr-3 h-5 w-5" /> : <Moon className="mr-3 h-5 w-5" />}
+              {isDark ? <Sun className="mr-3 h-[18px] w-[18px]" /> : <Moon className="mr-3 h-[18px] w-[18px]" />}
               {isDark ? 'Light mode' : 'Dark mode'}
             </button>
           </div>
@@ -84,8 +110,10 @@ export default function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className="pl-56">
-        <main className="mx-auto max-w-6xl p-8">{children}</main>
+      <div className="pl-60">
+        <main key={location.pathname} className="mx-auto max-w-6xl animate-fade-in p-8">
+          {children}
+        </main>
       </div>
     </div>
   )

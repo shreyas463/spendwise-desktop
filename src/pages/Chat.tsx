@@ -68,12 +68,12 @@ export default function Chat() {
         ) : (
           <div className="space-y-4">
             {chatHistory.map((m) => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={m.id} className={`flex animate-fade-up ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-soft ${
                     m.role === 'user'
-                      ? 'rounded-br-sm bg-primary text-primary-foreground'
-                      : 'rounded-bl-sm bg-muted text-foreground'
+                      ? 'bg-brand rounded-br-md text-white'
+                      : 'glass rounded-bl-md text-foreground'
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{m.text}</p>

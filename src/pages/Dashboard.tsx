@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -18,6 +19,7 @@ import { currentMonthKey, monthBounds, monthLabel, shiftMonth } from '../core/da
 import { formatCurrency, formatDate } from '../utils/formatters'
 import { CategoryPill, EmptyState, PageHeader, ProgressBar, StatCard } from '../components/ui'
 import ImportButton from '../components/ImportButton'
+import { TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE } from '../utils/chart'
 
 export default function Dashboard() {
   const { store, loadDemoData } = useData()
@@ -77,20 +79,26 @@ export default function Dashboard() {
           }
           icon={ArrowDownRight}
           tone="negative"
+          accent="#f43f5e"
+          delay={0}
         />
         <StatCard
           label="Income this month"
           value={formatCurrency(thisMonth.income, currency)}
           icon={ArrowUpRight}
           tone="positive"
+          accent="#22c55e"
+          delay={70}
         />
         <StatCard
           label="Net"
           value={formatCurrency(thisMonth.net, currency, { signed: true })}
           tone={thisMonth.net >= 0 ? 'positive' : 'negative'}
           icon={TrendingUp}
+          accent="#6366f1"
+          delay={140}
         />
-        <StatCard label="Transactions" value={String(thisMonth.count)} icon={Receipt} />
+        <StatCard label="Transactions" value={String(thisMonth.count)} icon={Receipt} accent="#8b5cf6" delay={210} />
       </div>
 
       {/* Budget alerts */}
@@ -112,12 +120,24 @@ export default function Dashboard() {
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie data={slices} dataKey="amount" nameKey="name" innerRadius={60} outerRadius={95} paddingAngle={2}>
+                <Pie
+                  data={slices}
+                  dataKey="amount"
+                  nameKey="name"
+                  innerRadius={62}
+                  outerRadius={96}
+                  paddingAngle={3}
+                  cornerRadius={6}
+                  stroke="none"
+                >
                   {slices.map((s) => (
-                    <Cell key={s.categoryId} fill={s.color} stroke="none" />
+                    <Cell key={s.categoryId} fill={s.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Tooltip
+                  formatter={(v: number) => formatCurrency(v, currency)}
+                  contentStyle={TOOLTIP_STYLE}
+                />
                 <Legend iconType="circle" iconSize={8} />
               </PieChart>
             </ResponsiveContainer>
@@ -128,14 +148,29 @@ export default function Dashboard() {
         <div className="card p-5">
           <h2 className="mb-4 text-base font-semibold text-foreground">Last 6 months</h2>
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trend} margin={{ left: 8, right: 8 }}>
+            <AreaChart data={trend} margin={{ left: 8, right: 8 }}>
+              <defs>
+                <linearGradient id="gSpent" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.08} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={56} />
-              <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+              <Tooltip
+                formatter={(v: number) => formatCurrency(v, currency)}
+                contentStyle={TOOLTIP_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+              />
               <Legend iconType="circle" iconSize={8} />
-              <Line type="monotone" dataKey="spent" name="Spent" stroke="#ef4444" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot={false} />
-            </LineChart>
+              <Area type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2.5} fill="url(#gIncome)" />
+              <Area type="monotone" dataKey="spent" name="Spent" stroke="#f43f5e" strokeWidth={2.5} fill="url(#gSpent)" />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
