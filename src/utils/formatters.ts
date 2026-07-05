@@ -1,44 +1,26 @@
-export const formatters = {
-  currency: (amount: number, currency: string = 'USD'): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-    }).format(amount)
-  },
+/** Display helpers used across pages. */
 
-  date: (date: string | Date, format: 'short' | 'long' | 'month' = 'short'): string => {
-    const dateObj = typeof date === 'string' ? new Date(date) : date
-    
-    const options: Intl.DateTimeFormatOptions = {
-      short: { month: 'short', day: 'numeric', year: 'numeric' },
-      long: { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' },
-      month: { month: 'short', year: 'numeric' },
-    }
+export function formatCurrency(amount: number, currency = 'USD', opts: { signed?: boolean } = {}): string {
+  const abs = Math.abs(amount)
+  let s: string
+  try {
+    s = new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(abs)
+  } catch {
+    s = `$${abs.toFixed(2)}`
+  }
+  if (opts.signed) return amount < 0 ? `−${s}` : `+${s}`
+  return amount < 0 ? `−${s}` : s
+}
 
-    return new Intl.DateTimeFormat('en-US', options[format]).format(dateObj)
-  },
+/** "2024-03-15" → "Mar 15, 2024" without timezone pitfalls. */
+export function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
 
-  number: (num: number, decimals: number = 2): string => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(num)
-  },
-
-  percentage: (value: number, decimals: number = 1): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'percent',
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(value / 100)
-  },
-
-  truncate: (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text
-    return text.substring(0, maxLength) + '...'
-  },
-
-  capitalize: (text: string): string => {
-    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
-  },
+export function formatCompact(amount: number): string {
+  if (Math.abs(amount) >= 1000) return `$${(amount / 1000).toFixed(1)}k`
+  return `$${Math.round(amount)}`
 }

@@ -1,180 +1,200 @@
+import { Link } from 'react-router-dom'
+import {
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { ArrowDownRight, ArrowUpRight, Inbox, Receipt, Sparkles, TrendingUp } from 'lucide-react'
 import { useData } from '../contexts/DataContext'
-import { 
-  DollarSign, 
-  TrendingUp, 
-  CreditCard, 
-  Calendar,
-  Upload,
-  AlertCircle
-} from 'lucide-react'
+import { budgetStatus, categoryBreakdown, monthlyTrend, summarize } from '../core/analytics'
+import { currentMonthKey, monthBounds, monthLabel, shiftMonth } from '../core/dates'
+import { formatCurrency, formatDate } from '../utils/formatters'
+import { CategoryPill, EmptyState, PageHeader, ProgressBar, StatCard } from '../components/ui'
+import ImportButton from '../components/ImportButton'
 
 export default function Dashboard() {
-  const { transactions, categories, loading, error } = useData()
+  const { store, loadDemoData } = useData()
+  const { transactions, categories, budgets, settings } = store
+  const currency = settings.currency
 
-  const totalSpent = transactions
-    .filter(t => t.amount < 0)
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
-
-  const totalIncome = transactions
-    .filter(t => t.amount > 0)
-    .reduce((sum, t) => sum + t.amount, 0)
-
-  const netWorth = totalIncome - totalSpent
-
-  const recentTransactions = transactions.slice(0, 5)
-
-  if (loading) {
+  if (transactions.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div>
+        <PageHeader title="Dashboard" subtitle="Your money at a glance" />
+        <EmptyState
+          icon={Inbox}
+          title="No transactions yet"
+          message="Import a CSV export from your bank or credit card to get started — SpendWise parses, categorizes, and charts everything locally on your machine."
+        >
+          <ImportButton />
+          <button className="btn btn-outline h-9 px-4" onClick={loadDemoData}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            Load demo data
+          </button>
+        </EmptyState>
       </div>
     )
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-danger mx-auto mb-4" />
-          <p className="text-danger">{error}</p>
-        </div>
-      </div>
-    )
-  }
+  const month = currentMonthKey()
+  const { start, end } = monthBounds(month)
+  const thisMonth = summarize(transactions, categories, { start, end })
+  const prevBounds = monthBounds(shiftMonth(month, -1))
+  const lastMonth = summarize(transactions, categories, { start: prevBounds.start, end: prevBounds.end })
+  const spendDelta = lastMonth.spent > 0 ? ((thisMonth.spent - lastMonth.spent) / lastMonth.spent) * 100 : null
+
+  const slices = categoryBreakdown(transactions, categories, { start, end })
+  const trend = monthlyTrend(transactions, categories, 6)
+  const budgetStats = budgetStatus(transactions, categories, budgets, month)
+  const alerts = budgetStats.filter((b) => b.state !== 'ok')
+  const recent = transactions.slice(0, 8)
+  const catById = new Map(categories.map((c) => [c.id, c]))
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <button className="btn btn-primary flex items-center">
-          <Upload className="h-4 w-4 mr-2" />
-          Upload CSV
-        </button>
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Overview for ${monthLabel(month)}`}
+        actions={<ImportButton />}
+      />
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Spent this month"
+          value={formatCurrency(thisMonth.spent, currency)}
+          hint={
+            spendDelta === null
+              ? undefined
+              : `${spendDelta >= 0 ? '+' : ''}${spendDelta.toFixed(0)}% vs ${monthLabel(shiftMonth(month, -1))}`
+          }
+          icon={ArrowDownRight}
+          tone="negative"
+        />
+        <StatCard
+          label="Income this month"
+          value={formatCurrency(thisMonth.income, currency)}
+          icon={ArrowUpRight}
+          tone="positive"
+        />
+        <StatCard
+          label="Net"
+          value={formatCurrency(thisMonth.net, currency, { signed: true })}
+          tone={thisMonth.net >= 0 ? 'positive' : 'negative'}
+          icon={TrendingUp}
+        />
+        <StatCard label="Transactions" value={String(thisMonth.count)} icon={Receipt} />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-              <p className="text-2xl font-bold text-danger">${totalSpent.toFixed(2)}</p>
-            </div>
-            <DollarSign className="h-8 w-8 text-danger" />
-          </div>
+      {/* Budget alerts */}
+      {alerts.length > 0 && (
+        <div className="card border-warning-300 bg-warning-50 p-4 dark:border-warning-700 dark:bg-warning-900/20">
+          <p className="text-sm font-medium text-warning-800 dark:text-warning-200">
+            {alerts.map((a) => `${a.name}: ${Math.round(a.ratio * 100)}% of ${formatCurrency(a.limit, currency)} budget`).join(' · ')}{' '}
+            — <Link to="/budgets" className="underline">review budgets</Link>
+          </p>
         </div>
+      )}
 
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Income</p>
-              <p className="text-2xl font-bold text-success">${totalIncome.toFixed(2)}</p>
-            </div>
-            <TrendingUp className="h-8 w-8 text-success" />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Net Worth</p>
-              <p className={`text-2xl font-bold ${netWorth >= 0 ? 'text-success' : 'text-danger'}`}>
-                ${netWorth.toFixed(2)}
-              </p>
-            </div>
-            <CreditCard className="h-8 w-8 text-primary" />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Transactions</p>
-              <p className="text-2xl font-bold text-foreground">{transactions.length}</p>
-            </div>
-            <Calendar className="h-8 w-8 text-warning" />
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="card">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold text-foreground">Recent Transactions</h2>
-        </div>
-        <div className="p-6">
-          {recentTransactions.length === 0 ? (
-            <div className="text-center py-8">
-              <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No transactions yet</p>
-              <p className="text-sm text-muted-foreground">Upload a CSV file to get started</p>
-            </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Category donut */}
+        <div className="card p-5">
+          <h2 className="mb-4 text-base font-semibold text-foreground">Spending by category</h2>
+          {slices.length === 0 ? (
+            <p className="py-16 text-center text-sm text-muted-foreground">No spending recorded this month yet.</p>
           ) : (
-            <div className="space-y-4">
-              {recentTransactions.map((transaction) => (
-                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: transaction.category?.color || '#6B7280' }}
-                    />
-                    <div>
-                      <p className="font-medium text-foreground">{transaction.description}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {transaction.category?.name || 'Uncategorized'} • {transaction.date}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-semibold ${transaction.amount < 0 ? 'text-danger' : 'text-success'}`}>
-                      {transaction.amount < 0 ? '-' : '+'}${Math.abs(transaction.amount).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={slices} dataKey="amount" nameKey="name" innerRadius={60} outerRadius={95} paddingAngle={2}>
+                  {slices.map((s) => (
+                    <Cell key={s.categoryId} fill={s.color} stroke="none" />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Legend iconType="circle" iconSize={8} />
+              </PieChart>
+            </ResponsiveContainer>
           )}
         </div>
+
+        {/* 6-month trend */}
+        <div className="card p-5">
+          <h2 className="mb-4 text-base font-semibold text-foreground">Last 6 months</h2>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={trend} margin={{ left: 8, right: 8 }}>
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={56} />
+              <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+              <Legend iconType="circle" iconSize={8} />
+              <Line type="monotone" dataKey="spent" name="Spent" stroke="#ef4444" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button className="btn btn-outline w-full justify-start">
-              <Upload className="h-4 w-4 mr-2" />
-              Import Transactions
-            </button>
-            <button className="btn btn-outline w-full justify-start">
-              <CreditCard className="h-4 w-4 mr-2" />
-              Add Manual Transaction
-            </button>
-            <button className="btn btn-outline w-full justify-start">
-              <TrendingUp className="h-4 w-4 mr-2" />
-              View Analytics
-            </button>
+      {/* Budgets snapshot */}
+      {budgetStats.length > 0 && (
+        <div className="card p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Budgets</h2>
+            <Link to="/budgets" className="text-sm text-primary hover:underline">
+              Manage
+            </Link>
           </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Categories</h3>
-          <div className="space-y-2">
-            {categories.slice(0, 5).map((category) => (
-              <div key={category.id} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  />
-                  <span className="text-sm text-foreground">{category.name}</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {budgetStats.slice(0, 6).map((b) => (
+              <div key={b.categoryId}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{b.name}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatCurrency(b.spent, currency)} / {formatCurrency(b.limit, currency)}
+                  </span>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {transactions.filter(t => t.categoryId === category.id).length}
-                </span>
+                <ProgressBar ratio={b.ratio} />
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Recent transactions */}
+      <div className="card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-foreground">Recent transactions</h2>
+          <Link to="/transactions" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        <div className="divide-y">
+          {recent.map((t) => {
+            const cat = catById.get(t.categoryId)
+            return (
+              <div key={t.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{t.merchant}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {cat && <CategoryPill name={cat.name} color={cat.color} />}
+                  <span
+                    className={`w-24 text-right text-sm font-semibold tabular-nums ${
+                      t.amount >= 0 ? 'text-success-600 dark:text-success-400' : 'text-foreground'
+                    }`}
+                  >
+                    {formatCurrency(t.amount, currency, { signed: true })}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
