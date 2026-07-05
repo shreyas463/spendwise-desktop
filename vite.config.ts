@@ -20,7 +20,9 @@ export default defineConfig({
         },
       }),
   ].filter(Boolean),
-  base: './',
+  // Electron loads over file:// (needs relative paths); a static web deploy
+  // (e.g. GitHub Pages project site) sets BASE_PATH to its subpath.
+  base: process.env.BASE_PATH || './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
