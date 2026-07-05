@@ -10,14 +10,24 @@ import { Store } from '../core/types'
  * whole UI is developable and testable without launching Electron.
  */
 
+/**
+ * A file the user picked to import. CSV/TXT arrive as decoded text; PDFs
+ * arrive as raw bytes (parsed in the renderer with PDF.js).
+ */
+export type PickedStatement =
+  | { name: string; kind: 'csv'; text: string }
+  | { name: string; kind: 'pdf'; bytes: Uint8Array }
+
 export interface SpendWiseBridge {
   readStore: () => Promise<unknown>
   writeStore: (data: unknown) => Promise<boolean>
-  openCsvFiles: () => Promise<{ name: string; content: string }[]>
+  openStatementFiles: () => Promise<PickedStatement[]>
   saveFile: (content: string, defaultName: string) => Promise<string | null>
   getVersion: () => Promise<string>
   platform: string
 }
+
+const isPdf = (name: string) => /\.pdf$/i.test(name)
 
 declare global {
   interface Window {
@@ -43,15 +53,23 @@ const browserBridge: SpendWiseBridge = {
     localStorage.setItem(LS_KEY, JSON.stringify(data))
     return true
   },
-  openCsvFiles() {
-    return new Promise((resolve) => {
+  openStatementFiles() {
+    return new Promise<PickedStatement[]>((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.csv,.txt,text/csv'
+      input.accept = '.csv,.txt,.pdf,text/csv,application/pdf'
       input.multiple = true
       input.onchange = async () => {
         const files = [...(input.files ?? [])]
-        resolve(await Promise.all(files.map(async (f) => ({ name: f.name, content: await f.text() }))))
+        resolve(
+          await Promise.all(
+            files.map(async (f): Promise<PickedStatement> =>
+              isPdf(f.name)
+                ? { name: f.name, kind: 'pdf', bytes: new Uint8Array(await f.arrayBuffer()) }
+                : { name: f.name, kind: 'csv', text: await f.text() },
+            ),
+          ),
+        )
       }
       // If the picker is dismissed we simply never resolve with files; treat
       // focus return without change as cancel.

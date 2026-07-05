@@ -7,7 +7,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 const api = {
   readStore: (): Promise<unknown> => ipcRenderer.invoke('store:read'),
   writeStore: (data: unknown): Promise<boolean> => ipcRenderer.invoke('store:write', data),
-  openCsvFiles: (): Promise<{ name: string; content: string }[]> => ipcRenderer.invoke('dialog:open-csv'),
+  openStatementFiles: (): Promise<
+    ({ name: string; kind: 'csv'; text: string } | { name: string; kind: 'pdf'; bytes: Uint8Array })[]
+  > => ipcRenderer.invoke('dialog:open-statements'),
   saveFile: (content: string, defaultName: string): Promise<string | null> =>
     ipcRenderer.invoke('dialog:save-file', content, defaultName),
   getVersion: (): Promise<string> => ipcRenderer.invoke('app:version'),

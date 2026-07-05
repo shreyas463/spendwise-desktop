@@ -31,7 +31,7 @@ export default function ImportButton({ variant = 'primary' }: { variant?: 'prima
         className={`btn ${variant === 'primary' ? 'btn-primary' : 'btn-outline'} h-9 px-4`}
       >
         <Upload className="mr-2 h-4 w-4" />
-        {busy ? 'Importing…' : 'Import CSV'}
+        {busy ? 'Importing…' : 'Import statement'}
       </button>
 
       {results && (

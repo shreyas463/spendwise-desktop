@@ -30,6 +30,7 @@ electron/          Main process + preload (thin: window, dialogs, storage IPC)
 src/core/          Pure business logic — no DOM/Electron imports, fully unit-tested
   types.ts         Domain types + the persisted Store shape
   csv.ts           RFC 4180 parser, bank-format detection, amount/date parsing
+  pdf.ts           PURE statement parser: extracted text -> transaction rows
   categorize.ts    Merchant extraction + rule matching
   categories.ts    Built-in categories and ~150 keyword rules
   analytics.ts     Aggregations: summaries, trends, breakdowns, budgets
@@ -37,6 +38,7 @@ src/core/          Pure business logic — no DOM/Electron imports, fully unit-t
   store.ts         Default store, validation/migration, import pipeline (dedup)
   demo.ts          Seeded demo dataset generator
 src/services/      backend.ts — typed bridge (Electron IPC ⇄ browser fallback)
+                   pdfExtract.ts — PDF.js text extraction (renderer-only, lazy)
 src/contexts/      DataContext — app state, actions, debounced persistence
 src/components/    Layout, shared UI primitives, ImportButton
 src/pages/         Dashboard, Transactions, Analytics, Budgets, Chat, Settings

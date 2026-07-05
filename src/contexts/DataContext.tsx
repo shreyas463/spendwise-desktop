@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Budget, ChatMessage, Rule, Settings, Store, Transaction, makeId } from '../core/types'
 import { createDefaultStore, migrateStore, buildImport, applyRules } from '../core/store'
 import { importCsv, toCsv } from '../core/csv'
+import type { NormalizedRow } from '../core/csv'
+import { parsePdfStatement } from '../core/pdf'
 import { extractMerchant, categorize } from '../core/categorize'
 import { generateDemoData } from '../core/demo'
 import { answerQuery } from '../core/query'
@@ -80,39 +82,69 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setStore((prev) => fn(prev))
   }, [])
 
+  // Shared tail of every import: categorize + de-duplicate the parsed rows
+  // against existing history, merge, and report what happened.
+  const commitRows = useCallback((fileName: string, rows: NormalizedRow[], skipped: number): ImportSummary => {
+    let summary: ImportSummary = { fileName, imported: 0, duplicates: 0, skipped }
+    setStore((prev) => {
+      const result = buildImport(rows, prev.transactions, prev.rules)
+      summary = { fileName, imported: result.imported, duplicates: result.duplicates, skipped }
+      if (result.transactions.length === 0) return prev
+      return {
+        ...prev,
+        transactions: [...result.transactions, ...prev.transactions].sort((a, b) =>
+          a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+        ),
+      }
+    })
+    return summary
+  }, [])
+
   const importCsvText = useCallback(
     (fileName: string, text: string): ImportSummary => {
-      let summary: ImportSummary = { fileName, imported: 0, duplicates: 0, skipped: 0 }
       try {
         const parsed = importCsv(text)
-        setStore((prev) => {
-          const result = buildImport(parsed.rows, prev.transactions, prev.rules)
-          summary = {
-            fileName,
-            imported: result.imported,
-            duplicates: result.duplicates,
-            skipped: parsed.skipped.length,
-          }
-          if (result.transactions.length === 0) return prev
-          return {
-            ...prev,
-            transactions: [...result.transactions, ...prev.transactions].sort((a, b) =>
-              a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
-            ),
-          }
-        })
+        return commitRows(fileName, parsed.rows, parsed.skipped.length)
       } catch (err) {
-        summary = { fileName, imported: 0, duplicates: 0, skipped: 0, error: err instanceof Error ? err.message : String(err) }
+        return { fileName, imported: 0, duplicates: 0, skipped: 0, error: err instanceof Error ? err.message : String(err) }
       }
-      return summary
     },
-    [],
+    [commitRows],
+  )
+
+  const importPdf = useCallback(
+    async (fileName: string, bytes: Uint8Array): Promise<ImportSummary> => {
+      try {
+        // PDF.js and the statement parser load only when a PDF is imported.
+        const { extractPdfLines } = await import('../services/pdfExtract')
+        const lines = await extractPdfLines(bytes)
+        const parsed = parsePdfStatement(lines)
+        if (parsed.rows.length === 0) {
+          return {
+            fileName,
+            imported: 0,
+            duplicates: 0,
+            skipped: parsed.skipped.length,
+            error:
+              'No transactions could be read from this PDF. It may be a scanned image, password-protected, or use a layout SpendWise doesn’t recognize yet — try exporting a CSV from your bank instead.',
+          }
+        }
+        return commitRows(fileName, parsed.rows, parsed.skipped.length)
+      } catch (err) {
+        return { fileName, imported: 0, duplicates: 0, skipped: 0, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+    [commitRows],
   )
 
   const importFromFilePicker = useCallback(async (): Promise<ImportSummary[]> => {
-    const files = await bridge.openCsvFiles()
-    return files.map((f) => importCsvText(f.name, f.content))
-  }, [importCsvText])
+    const files = await bridge.openStatementFiles()
+    const summaries: ImportSummary[] = []
+    for (const f of files) {
+      summaries.push(f.kind === 'pdf' ? await importPdf(f.name, f.bytes) : importCsvText(f.name, f.text))
+    }
+    return summaries
+  }, [importCsvText, importPdf])
 
   const addTransaction: DataContextType['addTransaction'] = useCallback(
     (t) => {

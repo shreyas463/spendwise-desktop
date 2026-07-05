@@ -31,7 +31,7 @@ export default function Dashboard() {
         <EmptyState
           icon={Inbox}
           title="No transactions yet"
-          message="Import a CSV export from your bank or credit card to get started — SpendWise parses, categorizes, and charts everything locally on your machine."
+          message="Import a CSV or PDF statement from your bank or credit card to get started — SpendWise parses, categorizes, and charts everything locally on your machine."
         >
           <ImportButton />
           <button className="btn btn-outline h-9 px-4" onClick={loadDemoData}>

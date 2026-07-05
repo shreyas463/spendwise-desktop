@@ -15,6 +15,7 @@ A **local-first** cross-platform desktop app for personal finance. Import your b
 ## ✨ Features
 
 - **CSV import with format detection** — handles signed-amount and debit/credit column layouts, `MM/DD/YYYY` / `DD/MM/YYYY` / ISO / text dates, quoted fields, `$1,234.56` and European `1.234,56` amounts, accounting `(45.00)` negatives, and comma/semicolon/tab delimiters. Re-importing the same file never creates duplicates.
+- **PDF statement import** — drop in a bank or credit-card PDF and SpendWise extracts *only* the transaction rows (a leading date + a trailing amount), discarding addresses, headers, page numbers, marketing, and running totals. It detects running-balance columns, reads sections/parentheses/`CR`·`DR` to sign each amount, and feeds the same categorize → de-duplicate → store pipeline as CSV. Works on text-based PDFs (not scanned images), fully offline.
 - **Automatic categorization** — ~150 built-in merchant rules (Whole Foods → Groceries, SQ \*Blue Bottle → Dining, …) plus your own rules, which always win and can re-categorize existing history. Messy statement text like `SQ *BLUE BOTTLE COFFEE #442` becomes a clean merchant name, "Blue Bottle Coffee".
 - **Dashboard** — monthly spend / income / net KPIs with month-over-month deltas, category donut, 6-month trend, budget snapshot, recent activity.
 - **Analytics** — category breakdown, monthly spend + transaction-count composed chart, stacked category mix over time, top merchants; each chart exports to CSV. 3/6/12-month ranges.
@@ -100,9 +101,11 @@ npm run build:dir  # fast unpacked build (release/) for local smoke-testing
 
 The browser demo is published to GitHub Pages automatically on every push to `main` by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), which runs the test suite and then builds the static bundle with `npm run build:web`. To host it elsewhere, run `BASE_PATH=/your-subpath/ npm run build:web` and serve the resulting `dist/`.
 
-## 📄 CSV formats
+## 📄 Importing statements (CSV & PDF)
 
-SpendWise auto-detects columns by header name. It needs at minimum a **date**, a **description**, and either an **amount** column (negative = money out) or a **debit**/**credit** pair. Extra columns are ignored. See [sample-data/](sample-data/) for two differently-shaped examples (a US bank export and a semicolon-delimited European credit-card export).
+**CSV** — SpendWise auto-detects columns by header name. It needs at minimum a **date**, a **description**, and either an **amount** column (negative = money out) or a **debit**/**credit** pair. Extra columns are ignored. See [sample-data/](sample-data/) for two differently-shaped examples (a US bank export and a semicolon-delimited European credit-card export).
+
+**PDF** — the extractor (PDF.js, running locally) turns the document back into lines, then a heuristic parser keeps only lines that look like transactions (leading date + trailing amount). It infers the date format and statement year, detects a running-balance column so it never mistakes the balance for the amount, and signs each amount from section headers (“Deposits”/“Purchases”), inline markers (`( )`, trailing `-`, `CR`/`DR`), or income keywords. Best with text-based statements; scanned/image-only PDFs can’t be read (export a CSV instead). After any import you can fix a category inline or delete a row, so odd cases are easy to correct.
 
 ## 🔒 Privacy
 

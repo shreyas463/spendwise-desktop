@@ -86,19 +86,31 @@ ipcMain.handle('store:write', async (_e, data: unknown) => {
 // Native dialogs
 // ---------------------------------------------------------------------------
 
-ipcMain.handle('dialog:open-csv', async () => {
+type PickedStatement =
+  | { name: string; kind: 'csv'; text: string }
+  | { name: string; kind: 'pdf'; bytes: Uint8Array }
+
+ipcMain.handle('dialog:open-statements', async () => {
   if (!win) return []
   const result = await dialog.showOpenDialog(win, {
     properties: ['openFile', 'multiSelections'],
     filters: [
+      { name: 'Statements', extensions: ['csv', 'txt', 'pdf'] },
       { name: 'CSV Files', extensions: ['csv', 'txt'] },
+      { name: 'PDF Files', extensions: ['pdf'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   })
   if (result.canceled) return []
-  const files: { name: string; content: string }[] = []
+  const files: PickedStatement[] = []
   for (const p of result.filePaths) {
-    files.push({ name: path.basename(p), content: await fs.readFile(p, 'utf8') })
+    const name = path.basename(p)
+    if (/\.pdf$/i.test(p)) {
+      const buf = await fs.readFile(p)
+      files.push({ name, kind: 'pdf', bytes: new Uint8Array(buf) })
+    } else {
+      files.push({ name, kind: 'csv', text: await fs.readFile(p, 'utf8') })
+    }
   }
   return files
 })

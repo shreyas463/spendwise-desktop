@@ -60,7 +60,7 @@ export default function Transactions() {
         <EmptyState
           icon={Inbox}
           title="Nothing here yet"
-          message="Import a CSV from your bank, or add a transaction manually."
+          message="Import a CSV or PDF statement from your bank, or add a transaction manually."
         >
           <ImportButton />
           <button className="btn btn-outline h-9 px-4" onClick={() => setAdding(true)}>
