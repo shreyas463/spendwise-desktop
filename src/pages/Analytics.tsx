@@ -1,205 +1,200 @@
+import { useMemo, useState } from 'react'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { BarChart3, Download } from 'lucide-react'
 import { useData } from '../contexts/DataContext'
-import { BarChart3, PieChart, TrendingUp, Calendar } from 'lucide-react'
+import {
+  categoryBreakdown,
+  monthlyTrend,
+  stackedByCategory,
+  topMerchants,
+} from '../core/analytics'
+import { currentMonthKey, monthBounds, shiftMonth } from '../core/dates'
+import { formatCompact, formatCurrency } from '../utils/formatters'
+import { EmptyState, PageHeader } from '../components/ui'
+import ImportButton from '../components/ImportButton'
+
+const RANGES = [
+  { key: '3m', label: '3 months', months: 3 },
+  { key: '6m', label: '6 months', months: 6 },
+  { key: '12m', label: '12 months', months: 12 },
+] as const
 
 export default function Analytics() {
-  const { transactions, categories, loading } = useData()
+  const { store, exportCsv } = useData()
+  const { transactions, categories, settings } = store
+  const currency = settings.currency
+  const [rangeKey, setRangeKey] = useState<(typeof RANGES)[number]['key']>('6m')
 
-  // Calculate analytics data
-  const categorySpending = categories.map((category: any) => {
-    const amount = transactions
-      .filter((t: any) => t.categoryId === category.id && t.amount < 0)
-      .reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0)
-    return {
-      category: category.name,
-      amount,
-      color: category.color || '#6B7280'
-    }
-  }).filter((item: any) => item.amount > 0)
+  const months = RANGES.find((r) => r.key === rangeKey)!.months
+  const endMonth = currentMonthKey()
+  const startMonth = shiftMonth(endMonth, -(months - 1))
+  const range = { start: monthBounds(startMonth).start, end: monthBounds(endMonth).end }
 
-  const totalSpending = categorySpending.reduce((sum: number, item: any) => sum + item.amount, 0)
+  const slices = useMemo(() => categoryBreakdown(transactions, categories, range), [transactions, categories, rangeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const trend = useMemo(() => monthlyTrend(transactions, categories, months), [transactions, categories, months])
+  const merchants = useMemo(() => topMerchants(transactions, categories, range, 10), [transactions, categories, rangeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const stacked = useMemo(() => stackedByCategory(transactions, categories, months), [transactions, categories, months])
 
-  const monthlyData = [
-    { month: 'Jan', amount: 1200, count: 45 },
-    { month: 'Feb', amount: 1350, count: 52 },
-    { month: 'Mar', amount: 1100, count: 38 },
-    { month: 'Apr', amount: 1450, count: 61 },
-    { month: 'May', amount: 1300, count: 48 },
-    { month: 'Jun', amount: 1600, count: 67 },
-  ]
-
-  const topMerchants = [
-    { merchant: 'Amazon', amount: 450, count: 12 },
-    { merchant: 'Starbucks', amount: 180, count: 24 },
-    { merchant: 'Shell', amount: 320, count: 8 },
-    { merchant: 'Netflix', amount: 45, count: 3 },
-    { merchant: 'Target', amount: 280, count: 6 },
-  ]
-
-  if (loading) {
+  if (transactions.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div>
+        <PageHeader title="Analytics" />
+        <EmptyState icon={BarChart3} title="No data to analyze" message="Import transactions to see spending breakdowns, trends, and top merchants.">
+          <ImportButton />
+        </EmptyState>
       </div>
     )
   }
 
+  const exportBreakdown = () =>
+    exportCsv(
+      ['Category', 'Amount', 'Share %', 'Transactions'],
+      slices.map((s) => [s.name, s.amount, s.percentage, s.count]),
+      'spendwise-category-breakdown.csv',
+    )
+  const exportTrend = () =>
+    exportCsv(
+      ['Month', 'Spent', 'Income', 'Transactions'],
+      trend.map((m) => [m.label, m.spent, m.income, m.count]),
+      'spendwise-monthly-trend.csv',
+    )
+  const exportMerchants = () =>
+    exportCsv(
+      ['Merchant', 'Amount', 'Transactions'],
+      merchants.map((m) => [m.merchant, m.amount, m.count]),
+      'spendwise-top-merchants.csv',
+    )
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-        <div className="flex items-center space-x-3">
-          <select className="input w-40">
-            <option>Last 6 months</option>
-            <option>Last year</option>
-            <option>All time</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Spending</p>
-              <p className="text-2xl font-bold text-danger">${totalSpending.toFixed(2)}</p>
-            </div>
-            <BarChart3 className="h-8 w-8 text-danger" />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Average per Month</p>
-              <p className="text-2xl font-bold text-warning">${(totalSpending / 6).toFixed(2)}</p>
-            </div>
-            <Calendar className="h-8 w-8 text-warning" />
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Top Category</p>
-              <p className="text-2xl font-bold text-primary">
-                {categorySpending[0]?.category || 'N/A'}
-              </p>
-            </div>
-            <PieChart className="h-8 w-8 text-primary" />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Category Breakdown */}
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Spending by Category</h3>
-          <div className="space-y-3">
-            {categorySpending.map((item: any, index: number) => {
-              const percentage = (item.amount / totalSpending) * 100
-              return (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm font-medium text-foreground">{item.category}</span>
-                    </div>
-                    <span className="text-sm text-muted-foreground">
-                      ${item.amount.toFixed(2)} ({percentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full transition-all duration-300"
-                      style={{ 
-                        width: `${percentage}%`,
-                        backgroundColor: item.color 
-                      }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Monthly Trends */}
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Monthly Trends</h3>
-          <div className="space-y-4">
-            {monthlyData.map((month, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">{month.month}</span>
-                  <span className="text-sm text-muted-foreground">
-                    ${month.amount} ({month.count} transactions)
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-primary transition-all duration-300"
-                    style={{ width: `${(month.amount / 1600) * 100}%` }}
-                  />
-                </div>
-              </div>
+      <PageHeader
+        title="Analytics"
+        subtitle="Where your money goes"
+        actions={
+          <div className="flex rounded-md border">
+            {RANGES.map((r) => (
+              <button
+                key={r.key}
+                onClick={() => setRangeKey(r.key)}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors first:rounded-l-md last:rounded-r-md ${
+                  rangeKey === r.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {r.label}
+              </button>
             ))}
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Top Merchants */}
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Top Merchants</h3>
-        <div className="space-y-3">
-          {topMerchants.map((merchant, index) => (
-            <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary">{index + 1}</span>
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">{merchant.merchant}</p>
-                  <p className="text-sm text-muted-foreground">{merchant.count} transactions</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-foreground">${merchant.amount.toFixed(2)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Category breakdown */}
+        <ChartCard title={`Spending by category (${months} months)`} onExport={exportBreakdown}>
+          {slices.length === 0 ? (
+            <NoData />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie data={slices} dataKey="amount" nameKey="name" innerRadius={62} outerRadius={100} paddingAngle={2}>
+                  {slices.map((s) => (
+                    <Cell key={s.categoryId} fill={s.color} stroke="none" />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Legend iconType="circle" iconSize={8} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
 
-      {/* Insights */}
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Insights</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-success/10 border border-success/20 rounded-lg">
-            <div className="flex items-center space-x-2 mb-2">
-              <TrendingUp className="h-5 w-5 text-success" />
-              <h4 className="font-medium text-success">Positive Trend</h4>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Your spending has decreased by 12% compared to last month.
-            </p>
-          </div>
-          
-          <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
-            <div className="flex items-center space-x-2 mb-2">
-              <BarChart3 className="h-5 w-5 text-warning" />
-              <h4 className="font-medium text-warning">High Spending</h4>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Food & Dining accounts for 35% of your total spending this month.
-            </p>
-          </div>
-        </div>
+        {/* Monthly totals + counts */}
+        <ChartCard title="Monthly spend & activity" onExport={exportTrend}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={trend} margin={{ left: 8, right: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="amt" tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={52} />
+              <YAxis yAxisId="cnt" orientation="right" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={36} />
+              <Tooltip
+                formatter={(v: number, name: string) => (name === 'Transactions' ? v : formatCurrency(v, currency))}
+              />
+              <Legend iconType="circle" iconSize={8} />
+              <Bar yAxisId="amt" dataKey="spent" name="Spent" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Line yAxisId="cnt" type="monotone" dataKey="count" name="Transactions" stroke="#f59e0b" strokeWidth={2} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        {/* Stacked categories over time */}
+        <ChartCard title="Category mix over time">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={stacked.data} margin={{ left: 8, right: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+              <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={52} />
+              <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+              <Legend iconType="circle" iconSize={8} />
+              {stacked.series.map((s) => (
+                <Bar key={s.key} dataKey={s.key} stackId="a" fill={s.color} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        {/* Top merchants */}
+        <ChartCard title="Top merchants" onExport={exportMerchants}>
+          {merchants.length === 0 ? (
+            <NoData />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={merchants.slice(0, 8)} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <XAxis type="number" tickFormatter={formatCompact} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="merchant" width={130} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Bar dataKey="amount" name="Spent" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
       </div>
     </div>
   )
+}
+
+function ChartCard({ title, onExport, children }: { title: string; onExport?: () => void; children: React.ReactNode }) {
+  return (
+    <div className="card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        {onExport && (
+          <button
+            onClick={onExport}
+            title="Export as CSV"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function NoData() {
+  return <p className="py-20 text-center text-sm text-muted-foreground">No spending in this period.</p>
 }

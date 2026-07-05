@@ -1,17 +1,18 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { 
-  Home, 
-  CreditCard, 
-  BarChart3, 
-  MessageSquare, 
+import {
+  BarChart3,
+  CreditCard,
+  Home,
+  MessageSquare,
+  Moon,
+  PiggyBank,
   Settings,
-  Menu,
-  X,
   Sun,
-  Moon
+  Wallet,
 } from 'lucide-react'
-import { useTheme } from '../contexts/ThemeContext'
+import { useData } from '../contexts/DataContext'
+import { budgetStatus } from '../core/analytics'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -21,115 +22,70 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Transactions', href: '/transactions', icon: CreditCard },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Budgets', href: '/budgets', icon: PiggyBank },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
-  const { theme, toggleTheme } = useTheme()
-  const [sidebarOpen, setSidebarOpen] = React.useState(false)
+  const { store, updateSettings } = useData()
+
+  const isDark = document.documentElement.classList.contains('dark')
+  const toggleTheme = () => updateSettings({ theme: isDark ? 'light' : 'dark' })
+
+  const overBudget = budgetStatus(store.transactions, store.categories, store.budgets).filter(
+    (b) => b.state === 'over',
+  ).length
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile sidebar */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-black/20" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed left-0 top-0 h-full w-64 bg-card border-r">
-          <div className="flex items-center justify-between p-4">
+      {/* Sidebar */}
+      <div className="fixed inset-y-0 flex w-56 flex-col">
+        <div className="flex flex-grow flex-col border-r bg-card">
+          <div className="flex items-center gap-2 px-4 pb-4 pt-8">
+            <Wallet className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold text-foreground">SpendWise</h1>
+          </div>
+          <nav className="mt-2 flex-1">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`relative mx-2 my-0.5 flex items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <item.icon className="mr-3 h-5 w-5" />
+                  {item.name}
+                  {item.href === '/budgets' && overBudget > 0 && (
+                    <span className="ml-auto inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger-500 px-1 text-xs font-semibold text-white">
+                      {overBudget}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="border-t p-3">
             <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-2 rounded-md hover:bg-muted"
+              onClick={toggleTheme}
+              className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <X className="h-5 w-5" />
+              {isDark ? <Sun className="mr-3 h-5 w-5" /> : <Moon className="mr-3 h-5 w-5" />}
+              {isDark ? 'Light mode' : 'Dark mode'}
             </button>
           </div>
-          <nav className="mt-4">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-card border-r">
-          <div className="flex items-center px-4 py-6">
-            <h1 className="text-xl font-bold text-foreground">SpendWise</h1>
-          </div>
-          <nav className="mt-4 flex-1">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-          <div className="flex items-center justify-between px-4 py-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-md hover:bg-muted"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-md hover:bg-muted transition-colors"
-                title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-              >
-                {theme === 'light' ? (
-                  <Moon className="h-5 w-5" />
-                ) : (
-                  <Sun className="h-5 w-5" />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Page content */}
-        <main className="flex-1">
-          <div className="p-6">
-            {children}
-          </div>
-        </main>
+      <div className="pl-56">
+        <main className="mx-auto max-w-6xl p-8">{children}</main>
       </div>
     </div>
   )
