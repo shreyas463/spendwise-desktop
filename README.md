@@ -1,6 +1,16 @@
 # SpendWise Desktop
 
+[![Live demo](https://img.shields.io/badge/live%20demo-online-brightgreen)](https://shreyas463.github.io/spendwise-desktop/)
+[![Deploy](https://github.com/shreyas463/spendwise-desktop/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/shreyas463/spendwise-desktop/actions/workflows/deploy-pages.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A **local-first** cross-platform desktop app for personal finance. Import your bank and credit-card CSV exports, get automatic transaction categorization, interactive spending analytics, budgets with alerts, and a chat interface that answers plain-English questions about your money — all computed on your machine. **No account, no server, no cloud. Your data never leaves your computer.**
+
+## 🌐 Live demo
+
+**[shreyas463.github.io/spendwise-desktop](https://shreyas463.github.io/spendwise-desktop/)** — the full UI running in your browser. Click **Load demo data** to explore the dashboard, analytics, budgets, and chat with a realistic dataset.
+
+> The demo is the same renderer as the desktop app, with browser `localStorage` standing in for on-disk storage — so anything you add lives only in your own browser. For real use, run the desktop app (below), which stores your data as a file on your machine.
 
 ## ✨ Features
 
@@ -15,26 +25,37 @@ A **local-first** cross-platform desktop app for personal finance. Import your b
 
 ## 🏗 Architecture
 
-SpendWise is intentionally simple: **one Electron app, zero services**.
+SpendWise is intentionally simple: **one Electron app, zero services**. The same renderer ships as the desktop app and as the static web demo; only the storage backend differs.
 
-```
-┌────────────────────────────────────────────────────────┐
-│ Electron main process (electron/)                      │
-│   window · native file dialogs · atomic JSON storage   │
-│   in the OS user-data directory                        │
-├──────────────────── IPC (preload bridge) ──────────────┤
-│ Renderer (src/)                                        │
-│   React + Tailwind + Recharts UI (src/pages)           │
-│   Pure business logic (src/core):                      │
-│     csv.ts        RFC 4180 parser + format detection   │
-│     categorize.ts merchant extraction + rules engine   │
-│     analytics.ts  aggregations (trends, budgets, …)    │
-│     query.ts      natural-language query engine        │
-│     store.ts      import pipeline, dedup, migration    │
-└────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    User(["👤 You"]) -->|import bank / card CSV| Pages
+
+    subgraph Renderer["Renderer · React + Tailwind + Recharts"]
+        Pages["Pages — Dashboard · Transactions · Analytics · Budgets · Chat · Settings"]
+        Ctx["DataContext — state · actions · debounced persist"]
+        Pages <--> Ctx
+    end
+
+    subgraph Core["src/core · pure, unit-tested TypeScript — no DOM, no Electron"]
+        CSV["csv.ts — RFC 4180 parse + bank-format detection"]
+        Cat["categorize.ts — merchant extraction + rules engine"]
+        Ana["analytics.ts — trends · breakdowns · budgets"]
+        Q["query.ts — natural-language query engine"]
+        St["store.ts — import dedup + validation/migration"]
+    end
+
+    Ctx --> Core
+    Ctx --> Bridge["services/backend.ts — SpendWiseBridge (one typed interface)"]
+
+    Bridge -->|desktop app| Main["⚙️ Electron main — native dialogs + atomic JSON write"]
+    Bridge -->|web demo| LS["🌐 Browser localStorage"]
+    Main --> File[("spendwise-data.json in the OS user-data dir")]
 ```
 
-Everything in `src/core` is dependency-free TypeScript — no DOM, no Electron — so it runs identically in the app, in a plain browser, and under Vitest. The renderer talks to the host through a single typed bridge (`src/services/backend.ts`) that falls back to `localStorage` in a browser, which means the entire UI can be developed and tested without launching Electron (`npm run dev:web`).
+Everything in `src/core` is dependency-free TypeScript — no DOM, no Electron — so it runs identically in the app, in a plain browser, and under Vitest. The renderer talks to its host through a single typed bridge (`src/services/backend.ts`) that falls back to `localStorage` in a browser, which is what lets the entire UI be developed, tested, and demoed without launching Electron (`npm run dev:web`).
+
+**Typical flow:** a CSV import runs through `csv.ts` (parse + detect format) → `categorize.ts` (merchant + category) → `store.ts` (de-duplicate against existing history) into `DataContext`, which persists via the bridge. The pages read that state back through `analytics.ts` and `query.ts` to render charts and answer questions — all synchronous, in-memory, on your machine.
 
 > **Why no database/microservices?** Earlier iterations of this project ran five Spring Boot services, PostgreSQL, and a local LLM via Docker. For a single-user desktop app that's pure operational overhead: a JSON document (atomically written, validated and migrated on load) comfortably handles tens of thousands of transactions, keeps the install a single binary, and makes "local-first privacy" literally true.
 
@@ -75,13 +96,17 @@ npm run build      # typecheck + build + electron-builder
 npm run build:dir  # fast unpacked build (release/) for local smoke-testing
 ```
 
+### Web demo deployment
+
+The browser demo is published to GitHub Pages automatically on every push to `main` by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml), which runs the test suite and then builds the static bundle with `npm run build:web`. To host it elsewhere, run `BASE_PATH=/your-subpath/ npm run build:web` and serve the resulting `dist/`.
+
 ## 📄 CSV formats
 
 SpendWise auto-detects columns by header name. It needs at minimum a **date**, a **description**, and either an **amount** column (negative = money out) or a **debit**/**credit** pair. Extra columns are ignored. See [sample-data/](sample-data/) for two differently-shaped examples (a US bank export and a semicolon-delimited European credit-card export).
 
 ## 🔒 Privacy
 
-All data lives in a single JSON document in your OS user-data folder (e.g. `~/Library/Application Support/SpendWise/` on macOS). The app makes no network requests. Backup and restore is a file copy — or use *Settings → Export backup*.
+All data lives in a single JSON document in your OS user-data folder (e.g. `~/Library/Application Support/SpendWise/` on macOS). The desktop app makes no network requests. Backup and restore is a file copy — or use *Settings → Export backup*.
 
 ## 📜 License
 
